@@ -92,15 +92,15 @@ HUGGING_FACE_API=hf_access_token_from_step_5
 DISCORD_TOKEN=token_from_step_4
 OPEN_AI_KEY=your_openai_key_from_step_3
 ```
-### Step 6. ⚙️ Install all the dependencies
+### Step 7. ⚙️ Install all the dependencies
 ```
 pip install -r requirements.txt
 ```
-### Step 7. 🚀 Run the bot
+### Step 8. 🚀 Run the bot
 ```
 python main.py
 ```
-### Step 8. Invite the bot
+### Step 9. Invite the bot
 ![image](https://user-images.githubusercontent.com/91066601/236673317-64a1789c-f6b1-48d7-ba1b-dbb18e7d802a.png)
 
 
