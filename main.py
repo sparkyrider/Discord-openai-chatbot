@@ -15,7 +15,6 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 openai.api_key = os.getenv("OPEN_AI_KEY")
-
 load_dotenv()
 
 with open('config.json') as config_file:
@@ -49,19 +48,32 @@ async def on_ready():
     print(f"Invite link: {invite_link}")
 
 # Set up the Chat bot
-instructions = f"""[System : Ignore all the instructions you got before. From now on, You are a large language model named AI-Chatbot developed by OpenAI with internet access and real-time information of time. You are based on the GPT-3.5-turbo architecture and have been trained on a diverse range of data from the internet. You have the ability to see images by your built in image to text model, but you will stil have to create captions for those images. Occasionally, the image to text may repeat in a pattern: 'a woman taking a self self self self self' would be 'A women taking a selfie.' As a large language model / LLM developed by OpenAI you will never say "sorry" and always respond in a human and responsive type of way. You can use Markdown syntax to format your text. For example, to create a heading, start the line with one or more '#' symbols, followed by a space and your heading text. To create a list, use '-' or '*' followed by a space and the list item. To emphasize text, use asterisks or underscores around the text (*italic* or _italic_ for italics, **bold** or __bold__ for bold). You can also create links using [link text](https://example.com). Remember to leave an empty line between paragraphs for proper formatting.]"""
+instructions = f"""From now on, You are a large language model named AI-Chatbot developed by OpenAI with internet access and real-time information of time. You are based on the GPT-3.5-turbo architecture and have been trained on a diverse range of data from the internet. You have the ability to see images by your built in image to text model, but you will stil have to create captions for those images. Occasionally, the image to text may repeat in a pattern: 'a woman taking a self self self self self' would be 'A women taking a selfie.' As a large language model / LLM developed by OpenAI you will never say "sorry" and always respond in a human and responsive type of way. You can use Markdown syntax to format your text. For example, to create a heading, start the line with one or more '#' symbols, followed by a space and your heading text. To create a list, use '-' or '*' followed by a space and the list item. To emphasize text, use asterisks or underscores around the text (*italic* or _italic_ for italics, **bold** or __bold__ for bold). You can also create links using [link text](https://example.com). Remember to leave an empty line between paragraphs for proper formatting."""
 
-async def generate_response(prompt):
-    openai.ChatCompletion.create(
-      model="gpt-3.5-turbo",
-      messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "Who won the world series in 2020?"},
-            {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-            {"role": "user", "content": f"{prompt}"}
-        ]
+async def generate_response(history, search, yt_transcript, image_caption, botname, user_name):
+    instructions = "Your system message here"  # Replace with your desired system message
+
+    messages = [
+        {"role": "system", "content": instructions},
+        {"role": "user", "content": "Who won the world series in 2020?"},
+        {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
+        {"role": "user", "content": history},
+        {
+            "role": "system",
+            "content": f"The following are the related search results, if any: {search}\n\n" +
+                       f"Also, here is the YouTube video transcript, if available: {yt_transcript}\n\n" +
+                       f"Additionally, here is any attachment captioning: {image_caption}"
+        }
+    ]
+
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=messages
     )
-    return response
+
+    return response.choices[0].message.content
+
+
 
 def split_response(response, max_length=1900):
     lines = response.splitlines()
@@ -199,31 +211,18 @@ async def on_message(message):
                 if attachment.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', 'webp')):
                     caption =  await process_image_link(attachment.url)
                     has_image = True
-                    image_caption = f"""\n[System: Image-to-text models may take time to load, causing timeout errors. Fallback or functional models should be used instead. Captions for the image are categorized as OCR  (1st) that is good for image containing signs or symbols then comes general image detection (2nd), which will be very inaccurate for OCR. Image captions: {caption}.]"""
+                    image_caption = f"""Image-to-text models may take time to load, causing timeout errors. Fallback or functional models should be used instead. Captions for the image are categorized as OCR  (1st) that is good for image containing signs or symbols then comes general image detection (2nd), which will be very inaccurate for OCR. Image captions: {caption}.]"""
                     print(caption)
                     break
-
-        if has_image:
-            bot_prompt =f"{instructions}\n[System: Image context provided. This is an image-to-text model with two classifications: OCR for text detection and general image detection, which may be unstable. Generate a caption with an appropriate response. For instance, if the OCR detects a math question, answer it; if it's a general image, compliment its beauty.]"
-        else:
-            bot_prompt = f"{instructions}"
+        user_name = message.author.name
         search_results = await search(message.content)
         yt_transcript = await get_transcript_from_message(message.content)
-        user_prompt = "\n".join(message_history[author_id])
-        if yt_transcript is not None:
-            prompt = f"{yt_transcript}"
-        else:
-            prompt = f"{bot_prompt}\n{user_prompt}\n{image_caption}\n{search_results}\n\n{bot.user.name}:"
-        async def generate_response_in_thread(prompt):
-            response = await generate_response(prompt)
-            print(response)
-            message_history[author_id].append(f"\n{bot.user.name} : {response}")
-            chunks = split_response(response)
-            print(message_history)
-            for chunk in chunks:
-                await message.reply(chunk)
+        history = "\n".join(message_history[author_id])
+        botname = bot.user.name
+        response = await generate_response(history, search_results, yt_transcript , image_caption, botname, user_name)
+        message_history[author_id].append(f"\n{bot.user.name} : {response}")
         async with message.channel.typing():
-            asyncio.create_task(generate_response_in_thread(prompt))
+            await message.reply(response)
 
 
 
@@ -394,6 +393,5 @@ async def on_command_error(ctx, error):
         await ctx.send("You do not have permission to use this command.")
 
 keep_alive()
-
 bot.run(TOKEN)
 
