@@ -15,7 +15,6 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 openai.api_key = os.getenv("OPEN_AI_KEY")
-openai.api_key = "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"
 load_dotenv()
 
 with open('config.json') as config_file:
