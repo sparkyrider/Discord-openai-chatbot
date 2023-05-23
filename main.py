@@ -15,6 +15,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 openai.api_key = os.getenv("OPEN_AI_KEY")
+openai.api_key = "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"
 load_dotenv()
 
 with open('config.json') as config_file:
@@ -53,9 +54,7 @@ instructions = f"""From now on, You are a large language model named AI-Chatbot 
 async def generate_response(history, search, yt_transcript, image_caption, botname, user_name):
     messages = [
         {"role": "system", "content": instructions},
-        {"role": "user", "content": "Who won the world series in 2020?"},
-        {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-        {"role": "user", "content": history},
+        *history,
         {
             "role": "system",
             "content": f"The following are the related search results, if any: {search}\n\n" +
@@ -180,17 +179,17 @@ MAX_HISTORY = 8
 
 @bot.event
 async def on_message(message):
-
     if message.author.bot:
-      return
+        return
     if message.reference and message.reference.resolved.author != bot.user:
-      return  # Ignore replies to messages
+        return  # Ignore replies to messages
 
     author_id = str(message.author.id)
     if author_id not in message_history:
         message_history[author_id] = []
 
-    message_history[author_id].append(f"{message.author.name} : {message.content}")
+    message_content = f"{message.author.name} : {message.content}"
+    message_history[author_id].append({"role": "user", "content": message.content})
     message_history[author_id] = message_history[author_id][-MAX_HISTORY:]
 
     is_replied = message.reference and message.reference.resolved.author == bot.user
@@ -207,20 +206,22 @@ async def on_message(message):
         if message.attachments:
             for attachment in message.attachments:
                 if attachment.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', 'webp')):
-                    caption =  await process_image_link(attachment.url)
+                    caption = await process_image_link(attachment.url)
                     has_image = True
-                    image_caption = f"""Image-to-text models may take time to load, causing timeout errors. Fallback or functional models should be used instead. Captions for the image are categorized as OCR  (1st) that is good for image containing signs or symbols then comes general image detection (2nd), which will be very inaccurate for OCR. Image captions: {caption}.]"""
+                    image_caption = f"""Image-to-text models may take time to load, causing timeout errors. Fallback or functional models should be used instead. Captions for the image are categorized as OCR (1st), which is good for images containing signs or symbols, and general image detection (2nd), which will be very inaccurate for OCR. Image captions: {caption}.]"""
                     print(caption)
                     break
         user_name = message.author.name
         search_results = await search(message.content)
         yt_transcript = await get_transcript_from_message(message.content)
-        history = "\n".join(message_history[author_id])
+        history = message_history[author_id]  # Use message_history[author_id] directly
         botname = bot.user.name
-        response = await generate_response(history, search_results, yt_transcript , image_caption, botname, user_name)
-        message_history[author_id].append(f"\n{bot.user.name} : {response}")
+        response = await generate_response(history, search_results, yt_transcript, image_caption, botname, user_name)
+        message_history[author_id].append({"role": "assistant", "content": response})
         async with message.channel.typing():
             await message.reply(response)
+
+
 
 
 
@@ -392,4 +393,3 @@ async def on_command_error(ctx, error):
 
 keep_alive()
 bot.run(TOKEN)
-
